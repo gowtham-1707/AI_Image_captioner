@@ -1,525 +1,1711 @@
 {
-  "title": "AI Image Captioner Observability",
-  "description": "Full-stack monitoring for BLIP Image Captioner. Tracks app health, latency, throughput, system resources, and alerts. Follows the 7 Commandments of Plotting.",
-  "uid": "prometheus-da5402",
-  "schemaVersion": 39,
-  "version": 1,
-  "refresh": "5s",
-  "time": { "from": "now-1h", "to": "now" },
-  "timezone": "browser",
-  "tags": ["blip", "prometheus"],
-  "panels": [
-
-    {
-      "id": 100,
-      "type": "row",
-      "title": "Section 1 — Application Health & Status",
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
-      "collapsed": false
-    },
-
-    {
-      "id": 1,
-      "type": "stat",
-      "title": "App Status (Up / Down)",
-      "description": "Shows whether the AI Captioner is reachable by Prometheus. Green = UP, Red = DOWN. Triggers a CRITICAL alert after 30s of being down.",
-      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
-      "datasource": { "type": "prometheus", "uid": "prometheus-da5402" },
-      "targets": [{
-        "expr": "up{job=\"ai_captioner\"}",
-        "instant": true,
-        "legendFormat": "Captioner"
-      }],
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "reduceOptions": { "calcs": ["lastNotNull"] },
-        "textMode": "value_and_name"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [
-            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red",   "index": 0 } } },
-            { "type": "value", "options": { "1": { "text": "UP",   "color": "green", "index": 1 } } }
-          ],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
-        }
-      }
-    },
-
-    {
-      "id": 2,
-      "type": "stat",
-      "title": "Node Exporter Status",
-      "description": "Shows whether node_exporter (system metrics) is reachable. If DOWN, CPU/RAM/Disk panels will show no data.",
-      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
-      "datasource": { "type": "prometheus", "uid": "prometheus-da5402" },
-      "targets": [{
-        "expr": "up{job=\"node_exporter\"}",
-        "instant": true,
-        "legendFormat": "node_exporter"
-      }],
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "reduceOptions": { "calcs": ["lastNotNull"] },
-        "textMode": "value_and_name"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [
-            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red",   "index": 0 } } },
-            { "type": "value", "options": { "1": { "text": "UP",   "color": "green", "index": 1 } } }
-          ],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
-        }
-      }
-    },
-
-    {
-      "id": 3,
-      "type": "stat",
-      "title": "Total Images Processed",
-      "description": "Cumulative count of successfully captioned images since app start, split by mode (single vs bulk).",
-      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
-      "datasource": { "type": "prometheus", "uid": "prometheus-da5402" },
-      "targets": [{
-        "expr": "sum by (mode) (captioner_images_processed_total{status=\"success\"})",
-        "instant": true,
-        "legendFormat": "{{ mode }}"
-      }],
-      "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
-      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "palette-classic" } } }
-    },
-
-    {
-      "id": 4,
-      "type": "stat",
-      "title": "Active Requests (Now)",
-      "description": "Number of images currently being processed. High values during bulk sessions are normal. Persistent high values may mean a stuck request.",
-      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
-      "datasource": { "type": "prometheus", "uid": "prometheus-da5402" },
-      "targets": [{
-        "expr": "sum(captioner_active_requests)",
-        "instant": true,
-        "legendFormat": "Active"
-      }],
-      "options": { "colorMode": "background", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 2 }, { "color": "red", "value": 5 }] }
-        }
-      }
-    },
-
-    {
-      "id": 5,
-      "type": "stat",
-      "title": "Model Memory Footprint",
-      "description": "Approximate RAM used by the BLIP model. Calculated as parameter_count x 4 bytes (float32). Expected ~440 MB for blip-image-captioning-base.",
-      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
-      "datasource": { "type": "prometheus", "uid": "prometheus-da5402" },
-      "targets": [{
-        "expr": "captioner_model_memory_bytes",
-        "instant": true,
-        "legendFormat": "Model RAM"
-      }],
-      "options": { "colorMode": "value", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "bytes",
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 400000000 }, { "color": "red", "value": 800000000 }] }
-        }
-      }
-    },
-
-    {
-      "id": 6,
-      "type": "stat",
-      "title": "Total Errors",
-      "description": "Total errors since app start. Even 1 error turns this yellow. Persistent errors trigger a CRITICAL alert.",
-      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
-      "datasource": { "type": "prometheus", "uid": "prometheus-da5402" },
-      "targets": [{
-        "expr": "sum(captioner_errors_total) or vector(0)",
-        "instant": true,
-        "legendFormat": "Errors"
-      }],
-      "options": { "colorMode": "background", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 5 }] }
-        }
-      }
-    },
-
-    {
-      "id": 101,
-      "type": "row",
-      "title": "Section 2 — Throughput & Error Rates",
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
-      "collapsed": false
-    },
-
-    {
-      "id": 10,
-      "type": "timeseries",
-      "title": "Image Throughput — Successful Captions per Second (by Mode)",
-      "description": "Images successfully processed per second over time. Bulk sessions produce bursty spikes. Single mode shows a steady trickle. Correlated with CPU spikes in Section 4.",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
-      "datasource": { "type": "prometheus", "uid": "prometheus-da5402" },
-      "targets": [{
-        "expr": "job:captioner_images_processed:rate1m",
-        "legendFormat": "{{ mode }}"
-      }],
-      "options": {
-        "legend": { "calcs": ["mean", "max", "last"], "displayMode": "table", "placement": "bottom", "showLegend": true },
-        "tooltip": { "mode": "multi", "sort": "desc" }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "color": { "mode": "palette-classic" },
-          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 }
-        }
-      }
-    },
-
-    {
-      "id": 11,
-      "type": "timeseries",
-      "title": "Error Rate (errors/s) and Error Ratio (%)",
-      "description": "Left axis: errors per second. Right axis: percentage of all images that failed. Alert fires when error rate > 0.1/s for 2 minutes or ratio > 10%.",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
-      "datasource": { "type": "prometheus", "uid": "prometheus-da5402" },
-      "targets": [
-        { "expr": "sum(rate(captioner_errors_total[1m]))", "legendFormat": "Errors/s" },
-        { "expr": "job:captioner_error_ratio:rate1m * 100", "legendFormat": "Error Ratio %" }
-      ],
-      "options": {
-        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
-        "tooltip": { "mode": "multi", "sort": "desc" }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "color": { "fixedColor": "red", "mode": "fixed" },
-          "custom": { "drawStyle": "bars", "fillOpacity": 60, "lineWidth": 1 }
-        }
-      }
-    },
-
-    {
-      "id": 102,
-      "type": "row",
-      "title": "Section 3 — Inference Latency",
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
-      "collapsed": false
-    },
-
-    {
-      "id": 20,
-      "type": "timeseries",
-      "title": "Inference Latency Percentiles — P50 / P95 / P99 (seconds, linear scale)",
-      "description": "P50 = median latency (normal ~2s on CPU). P95 > 10s triggers WARNING alert. P99 > 30s triggers CRITICAL alert. Watch how bulk mode pushes P99 higher than single mode.",
-      "gridPos": { "h": 9, "w": 16, "x": 0, "y": 15 },
-      "datasource": { "type": "prometheus", "uid": "prometheus-da5402" },
-      "targets": [
-        { "expr": "histogram_quantile(0.50, sum by (le,mode)(rate(captioner_inference_latency_seconds_bucket[5m])))", "legendFormat": "P50 — {{ mode }}" },
-        { "expr": "histogram_quantile(0.95, sum by (le,mode)(rate(captioner_inference_latency_seconds_bucket[5m])))", "legendFormat": "P95 — {{ mode }}" },
-        { "expr": "histogram_quantile(0.99, sum by (le,mode)(rate(captioner_inference_latency_seconds_bucket[5m])))", "legendFormat": "P99 — {{ mode }}" }
-      ],
-      "options": {
-        "legend": { "calcs": ["mean", "max", "last"], "displayMode": "table", "placement": "bottom", "showLegend": true },
-        "tooltip": { "mode": "multi", "sort": "desc" }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s",
-          "min": 0,
-          "color": { "mode": "palette-classic" },
-          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 }
-        }
-      }
-    },
-
-    {
-      "id": 21,
-      "type": "gauge",
-      "title": "Current P95 Latency vs Alert Threshold (10s)",
-      "description": "Gauge showing live P95 latency. Green = normal. Yellow = approaching alert. Red = alert has fired. Threshold: 10s.",
-      "gridPos": { "h": 9, "w": 8, "x": 16, "y": 15 },
-      "datasource": { "type": "prometheus", "uid": "prometheus-da5402" },
-      "targets": [{
-        "expr": "job:captioner_inference_latency_p95:5m",
-        "instant": true,
-        "legendFormat": "{{ mode }}"
-      }],
-      "options": { "showThresholdLabels": true, "showThresholdMarkers": true },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s",
-          "min": 0,
-          "max": 30,
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 5 }, { "color": "red", "value": 10 }] }
-        }
-      }
-    },
-
-    {
-      "id": 103,
-      "type": "row",
-      "title": "Section 4 — System Resources (Correlated with App Load)",
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 24 },
-      "collapsed": false
-    },
-
-    {
-      "id": 30,
-      "type": "timeseries",
-      "title": "CPU Utilisation (%) vs Image Throughput — Correlated",
-      "description": "CPU usage (left axis, %) plotted alongside images/sec (right axis). BLIP is CPU-bound — expect CPU to spike during bulk uploads. Alert fires when CPU > 80% for 2+ minutes.",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 25 },
-      "datasource": { "type": "prometheus", "uid": "prometheus-da5402" },
-      "targets": [
-        { "expr": "job:node_cpu_usage_percent:rate1m", "legendFormat": "CPU %" },
-        { "expr": "sum(job:captioner_images_processed:rate1m)", "legendFormat": "Images/s" }
-      ],
-      "options": {
-        "legend": { "calcs": ["mean", "max", "last"], "displayMode": "table", "placement": "bottom", "showLegend": true },
-        "tooltip": { "mode": "multi", "sort": "desc" }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "min": 0,
-          "max": 100,
-          "color": { "mode": "palette-classic" },
-          "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2 }
-        }
-      }
-    },
-
-    {
-      "id": 31,
-      "type": "timeseries",
-      "title": "Memory Utilisation (%) vs Model Footprint (bytes)",
-      "description": "RAM usage % (left axis) vs model memory in bytes (right axis). BLIP uses ~440MB. Add batch tensors and total can reach 1-2GB. Alert fires at > 85% RAM usage.",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 25 },
-      "datasource": { "type": "prometheus", "uid": "prometheus-da5402" },
-      "targets": [
-        { "expr": "job:node_memory_usage_percent:current", "legendFormat": "Memory %" },
-        { "expr": "captioner_model_memory_bytes", "legendFormat": "Model RAM (bytes)" }
-      ],
-      "options": {
-        "legend": { "calcs": ["mean", "max", "last"], "displayMode": "table", "placement": "bottom", "showLegend": true },
-        "tooltip": { "mode": "multi", "sort": "desc" }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "min": 0,
-          "color": { "mode": "palette-classic" },
-          "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2 }
-        }
-      }
-    },
-
-    {
-      "id": 32,
-      "type": "gauge",
-      "title": "Disk Usage % (root partition)",
-      "description": "Disk usage on the root filesystem. HuggingFace model cache and ZIP uploads can fill disk quickly. Alert fires at > 90%.",
-      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 33 },
-      "datasource": { "type": "prometheus", "uid": "prometheus-da5402" },
-      "targets": [{
-        "expr": "job:node_disk_usage_percent:current",
-        "instant": true,
-        "legendFormat": "Disk %"
-      }],
-      "options": { "showThresholdLabels": true, "showThresholdMarkers": true },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "min": 0,
-          "max": 100,
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 70 }, { "color": "red", "value": 90 }] }
-        }
-      }
-    },
-
-    {
-      "id": 33,
-      "type": "timeseries",
-      "title": "Network Bandwidth, Receive (uploads) & Transmit (bytes/s, linear scale)",
-      "description": "Network traffic in bytes/sec. Large ZIP uploads appear as spikes in the receive line. Transmit shows response data going back to the browser.",
-      "gridPos": { "h": 6, "w": 18, "x": 6, "y": 33 },
-      "datasource": { "type": "prometheus", "uid": "prometheus-da5402" },
-      "targets": [
-        { "expr": "sum(rate(node_network_receive_bytes_total{device!~\"lo|docker.*\"}[1m]))", "legendFormat": "Receive (uploads)" },
-        { "expr": "sum(rate(node_network_transmit_bytes_total{device!~\"lo|docker.*\"}[1m]))", "legendFormat": "Transmit" }
-      ],
-      "options": {
-        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
-        "tooltip": { "mode": "multi", "sort": "desc" }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "Bps",
-          "color": { "mode": "palette-classic" },
-          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 }
-        }
-      }
-    },
-
-    {
-      "id": 104,
-      "type": "row",
-      "title": " Section 5 — Alert Events",
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 39 },
-      "collapsed": false
-    },
-
-    {
-      "id": 40,
-      "type": "table",
-      "title": "Currently Firing Alerts",
-      "description": "Table of all active alerts pulled from Prometheus. Rows are color-coded by severity. Silenced alerts during maintenance windows will not appear here.",
-      "gridPos": { "h": 8, "w": 14, "x": 0, "y": 40 },
-      "datasource": { "type": "prometheus", "uid": "prometheus-da5402" },
-      "targets": [{
-        "expr": "ALERTS{alertstate=\"firing\"}",
-        "instant": true,
-        "format": "table"
-      }],
-      "options": { "cellHeight": "sm", "showHeader": true },
-      "fieldConfig": {
-        "defaults": { "custom": { "align": "auto" } },
-        "overrides": [
-          { "matcher": { "id": "byName", "options": "severity" }, "properties": [
-            { "id": "custom.cellOptions", "value": { "type": "color-background" } },
-            { "id": "mappings", "value": [
-              { "type": "value", "options": { "critical": { "color": "red",    "index": 0 } } },
-              { "type": "value", "options": { "warning":  { "color": "yellow", "index": 1 } } },
-              { "type": "value", "options": { "info":     { "color": "blue",   "index": 2 } } }
-            ]}
-          ]}
-        ]
-      },
-      "transformations": [
-        { "id": "filterFieldsByName", "options": { "include": { "names": ["alertname", "severity", "instance", "alertstate"] } } }
-      ]
-    },
-
-    {
-      "id": 41,
-      "type": "timeseries",
-      "title": "Images Processed — Success vs Error by Mode (stacked bars)",
-      "description": "Stacked bar chart showing successful vs failed images per interval. A growing error bar means systematic failures need investigation.",
-      "gridPos": { "h": 8, "w": 10, "x": 14, "y": 40 },
-      "datasource": { "type": "prometheus", "uid": "prometheus-da5402" },
-      "targets": [
-        { "expr": "increase(captioner_images_processed_total{status=\"success\"}[$__interval])", "legendFormat": "✅ {{ mode }} success" },
-        { "expr": "increase(captioner_images_processed_total{status=\"error\"}[$__interval])",   "legendFormat": "❌ {{ mode }} error" }
-      ],
-      "options": {
-        "legend": { "calcs": ["sum"], "displayMode": "table", "placement": "bottom", "showLegend": true },
-        "tooltip": { "mode": "multi", "sort": "desc" }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "color": { "mode": "palette-classic" },
-          "custom": { "drawStyle": "bars", "fillOpacity": 70, "lineWidth": 1, "stacking": { "group": "A", "mode": "normal" } }
-        }
-      }
-    },
-
-    {
-      "id": 105,
-      "type": "row",
-      "title": " Section 6 — Bulk Upload Deep Dive",
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 48 },
-      "collapsed": false
-    },
-
-    {
-      "id": 50,
-      "type": "timeseries",
-      "title": "Bulk Queue Depth — Images Pending Inference",
-      "description": "Number of images still waiting to be processed in the current bulk batch. Counts down from batch size to 0. A long non-zero value means the batch is slow — likely due to CPU saturation.",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 49 },
-      "datasource": { "type": "prometheus", "uid": "prometheus-da5402" },
-      "targets": [{
-        "expr": "captioner_bulk_queue_size",
-        "legendFormat": "Pending Images"
-      }],
-      "options": {
-        "legend": { "calcs": ["max", "last"], "displayMode": "list", "placement": "bottom", "showLegend": true },
-        "tooltip": { "mode": "single" }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "min": 0,
-          "color": { "fixedColor": "#E0B400", "mode": "fixed" },
-          "custom": { "drawStyle": "line", "fillOpacity": 30, "lineWidth": 2 }
-        }
-      }
-    },
-
-    {
-      "id": 51,
-      "type": "timeseries",
-      "title": "Caption Length Distribution — Characters per Caption (rate over 5 min)",
-      "description": "Distribution of caption lengths across histogram buckets. Very short captions (<15 chars) may indicate model truncation. Very long ones (>120) suggest verbose output.",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 49 },
-      "datasource": { "type": "prometheus", "uid": "prometheus-da5402" },
-      "targets": [{
-        "expr": "sum by (le) (rate(captioner_caption_length_chars_bucket[5m]))",
-        "legendFormat": "≤ {{ le }} chars"
-      }],
-      "options": {
-        "legend": { "calcs": ["sum"], "displayMode": "list", "placement": "bottom", "showLegend": true },
-        "tooltip": { "mode": "multi", "sort": "desc" }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "color": { "mode": "palette-classic" },
-          "custom": { "drawStyle": "bars", "fillOpacity": 60, "lineWidth": 1 }
-        }
-      }
-    }
-
-  ],
-
-  "templating": {
+  "annotations": {
     "list": [
       {
-        "name": "mode",
-        "label": "Mode",
-        "type": "query",
-        "datasource": { "type": "prometheus", "uid": "prometheus-da5402" },
-        "definition": "label_values(captioner_images_processed_total, mode)",
-        "query": "label_values(captioner_images_processed_total, mode)",
-        "includeAll": true,
-        "multi": true,
-        "refresh": 2
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
       }
     ]
   },
-
-  "annotations": {
-    "list": [{
-      "builtIn": 1,
-      "datasource": { "type": "grafana", "uid": "-- Grafana --" },
-      "enable": true,
-      "hide": true,
-      "name": "Annotations & Alerts",
-      "type": "dashboard"
-    }]
-  }
+  "description": "Full-stack monitoring for BLIP Image Captioner. Tracks app health, latency, throughput, system resources, and alerts. Follows the 7 Commandments of Plotting.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 2,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 100,
+      "title": "Section 1 — Application Health & Status",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-da5402"
+      },
+      "description": "Shows whether the AI Captioner is reachable by Prometheus. Green = UP, Red = DOWN. Triggers a CRITICAL alert after 30s of being down.",
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "red",
+                  "index": 0,
+                  "text": "DOWN"
+                }
+              },
+              "type": "value"
+            },
+            {
+              "options": {
+                "1": {
+                  "color": "green",
+                  "index": 1,
+                  "text": "UP"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 1
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "expr": "up{job=\"ai_captioner\"}",
+          "instant": true,
+          "legendFormat": "Captioner",
+          "refId": "A"
+        }
+      ],
+      "title": "App Status (Up / Down)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-da5402"
+      },
+      "description": "Shows whether node_exporter (system metrics) is reachable. If DOWN, CPU/RAM/Disk panels will show no data.",
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "red",
+                  "index": 0,
+                  "text": "DOWN"
+                }
+              },
+              "type": "value"
+            },
+            {
+              "options": {
+                "1": {
+                  "color": "green",
+                  "index": 1,
+                  "text": "UP"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 1
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "expr": "up{job=\"node_exporter\"}",
+          "instant": true,
+          "legendFormat": "node_exporter",
+          "refId": "A"
+        }
+      ],
+      "title": "Node Exporter Status",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-da5402"
+      },
+      "description": "Cumulative count of successfully captioned images since app start, split by mode (single vs bulk).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 1
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "expr": "sum by (mode) (captioner_images_processed_total{status=\"success\"})",
+          "instant": true,
+          "legendFormat": "{{ mode }}",
+          "refId": "A"
+        }
+      ],
+      "title": "Total Images Processed",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-da5402"
+      },
+      "description": "Number of images currently being processed. High values during bulk sessions are normal. Persistent high values may mean a stuck request.",
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 2
+              },
+              {
+                "color": "red",
+                "value": 5
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 1
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "expr": "sum(captioner_active_requests)",
+          "instant": true,
+          "legendFormat": "Active",
+          "refId": "A"
+        }
+      ],
+      "title": "Active Requests (Now)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-da5402"
+      },
+      "description": "Approximate RAM used by the BLIP model. Calculated as parameter_count x 4 bytes (float32). Expected ~440 MB for blip-image-captioning-base.",
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 400000000
+              },
+              {
+                "color": "red",
+                "value": 800000000
+              }
+            ]
+          },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 1
+      },
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "expr": "captioner_model_memory_bytes",
+          "instant": true,
+          "legendFormat": "Model RAM",
+          "refId": "A"
+        }
+      ],
+      "title": "Model Memory Footprint",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-da5402"
+      },
+      "description": "Total errors since app start. Even 1 error turns this yellow. Persistent errors trigger a CRITICAL alert.",
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 5
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
+      "id": 6,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "expr": "sum(captioner_errors_total) or vector(0)",
+          "instant": true,
+          "legendFormat": "Errors",
+          "refId": "A"
+        }
+      ],
+      "title": "Total Errors",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "id": 101,
+      "panels": [],
+      "title": "Section 2 — Throughput & Error Rates",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-da5402"
+      },
+      "description": "Images successfully processed per second over time. Bulk sessions produce bursty spikes. Single mode shows a steady trickle. Correlated with CPU spikes in Section 4.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 6
+      },
+      "id": 10,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max",
+            "last"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "maxHeight": 600,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "job:captioner_images_processed:rate1m",
+          "legendFormat": "{{ mode }}",
+          "refId": "A"
+        }
+      ],
+      "title": "Image Throughput — Successful Captions per Second (by Mode)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-da5402"
+      },
+      "description": "Left axis: errors per second. Right axis: percentage of all images that failed. Alert fires when error rate > 0.1/s for 2 minutes or ratio > 10%.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "red",
+            "mode": "fixed"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 6
+      },
+      "id": 11,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "maxHeight": 600,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(captioner_errors_total[1m]))",
+          "legendFormat": "Errors/s",
+          "refId": "A"
+        },
+        {
+          "expr": "job:captioner_error_ratio:rate1m * 100",
+          "legendFormat": "Error Ratio %",
+          "refId": "B"
+        }
+      ],
+      "title": "Error Rate (errors/s) and Error Ratio (%)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
+      "id": 102,
+      "title": "Section 3 — Inference Latency",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-da5402"
+      },
+      "description": "P50 = median latency (normal ~2s on CPU). P95 > 10s triggers WARNING alert. P99 > 30s triggers CRITICAL alert. Watch how bulk mode pushes P99 higher than single mode.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 16,
+        "x": 0,
+        "y": 15
+      },
+      "id": 20,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max",
+            "last"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "maxHeight": 600,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (le,mode)(rate(captioner_inference_latency_seconds_bucket[5m])))",
+          "legendFormat": "P50 — {{ mode }}",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le,mode)(rate(captioner_inference_latency_seconds_bucket[5m])))",
+          "legendFormat": "P95 — {{ mode }}",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le,mode)(rate(captioner_inference_latency_seconds_bucket[5m])))",
+          "legendFormat": "P99 — {{ mode }}",
+          "refId": "C"
+        }
+      ],
+      "title": "Inference Latency Percentiles — P50 / P95 / P99 (seconds, linear scale)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-da5402"
+      },
+      "description": "Gauge showing live P95 latency. Green = normal. Yellow = approaching alert. Red = alert has fired. Threshold: 10s.",
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "max": 30,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 5
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 16,
+        "y": 15
+      },
+      "id": 21,
+      "options": {
+        "minVizHeight": 75,
+        "minVizWidth": 75,
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": true,
+        "showThresholdMarkers": true,
+        "sizing": "auto"
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "expr": "job:captioner_inference_latency_p95:5m",
+          "instant": true,
+          "legendFormat": "{{ mode }}",
+          "refId": "A"
+        }
+      ],
+      "title": "Current P95 Latency vs Alert Threshold (10s)",
+      "type": "gauge"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "id": 103,
+      "title": "Section 4 — System Resources (Correlated with App Load)",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-da5402"
+      },
+      "description": "CPU usage (left axis, %) plotted alongside images/sec (right axis). BLIP is CPU-bound — expect CPU to spike during bulk uploads. Alert fires when CPU > 80% for 2+ minutes.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 25
+      },
+      "id": 30,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max",
+            "last"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "maxHeight": 600,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "job:node_cpu_usage_percent:rate1m",
+          "legendFormat": "CPU %",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(job:captioner_images_processed:rate1m)",
+          "legendFormat": "Images/s",
+          "refId": "B"
+        }
+      ],
+      "title": "CPU Utilisation (%) vs Image Throughput — Correlated",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-da5402"
+      },
+      "description": "RAM usage % (left axis) vs model memory in bytes (right axis). BLIP uses ~440MB. Add batch tensors and total can reach 1-2GB. Alert fires at > 85% RAM usage.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 25
+      },
+      "id": 31,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max",
+            "last"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "maxHeight": 600,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "job:node_memory_usage_percent:current",
+          "legendFormat": "Memory %",
+          "refId": "A"
+        },
+        {
+          "expr": "captioner_model_memory_bytes",
+          "legendFormat": "Model RAM (bytes)",
+          "refId": "B"
+        }
+      ],
+      "title": "Memory Utilisation (%) vs Model Footprint (bytes)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-da5402"
+      },
+      "description": "Disk usage on the root filesystem. HuggingFace model cache and ZIP uploads can fill disk quickly. Alert fires at > 90%.",
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 33
+      },
+      "id": 32,
+      "options": {
+        "minVizHeight": 75,
+        "minVizWidth": 75,
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": true,
+        "showThresholdMarkers": true,
+        "sizing": "auto"
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "expr": "job:node_disk_usage_percent:current",
+          "instant": true,
+          "legendFormat": "Disk %",
+          "refId": "A"
+        }
+      ],
+      "title": "Disk Usage % (root partition)",
+      "type": "gauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-da5402"
+      },
+      "description": "Network traffic in bytes/sec. Large ZIP uploads appear as spikes in the receive line. Transmit shows response data going back to the browser.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 18,
+        "x": 6,
+        "y": 33
+      },
+      "id": 33,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "maxHeight": 600,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(node_network_receive_bytes_total{device!~\"lo|docker.*\"}[1m]))",
+          "legendFormat": "Receive (uploads)",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(node_network_transmit_bytes_total{device!~\"lo|docker.*\"}[1m]))",
+          "legendFormat": "Transmit",
+          "refId": "B"
+        }
+      ],
+      "title": "Network Bandwidth, Receive (uploads) & Transmit (bytes/s, linear scale)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 39
+      },
+      "id": 104,
+      "title": " Section 5 — Alert Events",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-da5402"
+      },
+      "description": "Table of all active alerts pulled from Prometheus. Rows are color-coded by severity. Silenced alerts during maintenance windows will not appear here.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "severity"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "critical": {
+                        "color": "red",
+                        "index": 0
+                      }
+                    },
+                    "type": "value"
+                  },
+                  {
+                    "options": {
+                      "warning": {
+                        "color": "yellow",
+                        "index": 1
+                      }
+                    },
+                    "type": "value"
+                  },
+                  {
+                    "options": {
+                      "info": {
+                        "color": "blue",
+                        "index": 2
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 14,
+        "x": 0,
+        "y": 40
+      },
+      "id": 40,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "expr": "ALERTS{alertstate=\"firing\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Currently Firing Alerts",
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "alertname",
+                "severity",
+                "instance",
+                "alertstate"
+              ]
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-da5402"
+      },
+      "description": "Stacked bar chart showing successful vs failed images per interval. A growing error bar means systematic failures need investigation.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 10,
+        "x": 14,
+        "y": 40
+      },
+      "id": 41,
+      "options": {
+        "legend": {
+          "calcs": [
+            "sum"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "maxHeight": 600,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "increase(captioner_images_processed_total{status=\"success\"}[$__interval])",
+          "legendFormat": "✅ {{ mode }} success",
+          "refId": "A"
+        },
+        {
+          "expr": "increase(captioner_images_processed_total{status=\"error\"}[$__interval])",
+          "legendFormat": "❌ {{ mode }} error",
+          "refId": "B"
+        }
+      ],
+      "title": "Images Processed — Success vs Error by Mode (stacked bars)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 48
+      },
+      "id": 105,
+      "title": " Section 6 — Bulk Upload Deep Dive",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-da5402"
+      },
+      "description": "Number of images still waiting to be processed in the current bulk batch. Counts down from batch size to 0. A long non-zero value means the batch is slow — likely due to CPU saturation.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "#E0B400",
+            "mode": "fixed"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 30,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 49
+      },
+      "id": 50,
+      "options": {
+        "legend": {
+          "calcs": [
+            "max",
+            "last"
+          ],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "maxHeight": 600,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "captioner_bulk_queue_size",
+          "legendFormat": "Pending Images",
+          "refId": "A"
+        }
+      ],
+      "title": "Bulk Queue Depth — Images Pending Inference",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-da5402"
+      },
+      "description": "Distribution of caption lengths across histogram buckets. Very short captions (<15 chars) may indicate model truncation. Very long ones (>120) suggest verbose output.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 49
+      },
+      "id": 51,
+      "options": {
+        "legend": {
+          "calcs": [
+            "sum"
+          ],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "maxHeight": 600,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (le) (rate(captioner_caption_length_chars_bucket[5m]))",
+          "legendFormat": "≤ {{ le }} chars",
+          "refId": "A"
+        }
+      ],
+      "title": "Caption Length Distribution — Characters per Caption (rate over 5 min)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "tags": [
+    "blip",
+    "prometheus"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus-da5402"
+        },
+        "definition": "label_values(captioner_images_processed_total, mode)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Mode",
+        "multi": true,
+        "name": "mode",
+        "options": [],
+        "query": "label_values(captioner_images_processed_total, mode)",
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "timeRangeUpdatedDuringEditOrView": false,
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "AI Image Captioner Observability",
+  "uid": "prometheus-da5402",
+  "version": 1,
+  "weekStart": ""
 }
