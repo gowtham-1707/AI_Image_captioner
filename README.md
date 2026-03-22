@@ -262,3 +262,5 @@ Per assignment Code of Conduct:
   benchmarks (P50 ~2s, model RAM ~440 MB, CPU saturation during bulk batches).
 - **Complex PromQL** (anomaly detection rule in `alerting_rules.yml`) was AI-generated.
   Prompt used: *"alert when 5min avg latency is more than 3 times the 1 hour p50 baseline per mode"*
+
+  ## Google drive link: https://drive.google.com/drive/folders/1l5atoA1-MDzb9KXjBScsrddgDvUYJF9G?usp=drive_link
