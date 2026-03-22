@@ -1,0 +1,87 @@
+groups:
+  - name: captioner_throughput
+    interval: 30s   
+    rules:
+      - record: job:captioner_images_processed:rate1m
+        expr: |
+          sum by (mode) (
+            rate(captioner_images_processed_total{status="success"}[1m])
+          )
+      - record: job:captioner_errors:rate1m
+        expr: |
+          sum by (mode) (
+            rate(captioner_errors_total[1m])
+          )
+
+      - record: job:captioner_error_ratio:rate1m
+        expr: |
+          sum(rate(captioner_errors_total[1m]))
+          /
+          (sum(rate(captioner_images_processed_total[1m])) + 0.0001)
+
+  - name: captioner_latency
+    interval: 60s
+    rules:
+
+      - record: job:captioner_inference_latency_p50:1h
+        expr: |
+          histogram_quantile(
+            0.50,
+            sum by (le, mode) (
+              rate(captioner_inference_latency_seconds_bucket[1h])
+            )
+          )
+
+      - record: job:captioner_inference_latency_p95:5m
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le, mode) (
+              rate(captioner_inference_latency_seconds_bucket[5m])
+            )
+          )
+
+      - record: job:captioner_inference_latency_p99:5m
+        expr: |
+          histogram_quantile(
+            0.99,
+            sum by (le, mode) (
+              rate(captioner_inference_latency_seconds_bucket[5m])
+            )
+          )
+
+      - record: job:captioner_inference_latency_avg:5m
+        expr: |
+          sum by (mode) (rate(captioner_inference_latency_seconds_sum[5m]))
+          /
+          sum by (mode) (rate(captioner_inference_latency_seconds_count[5m]))
+
+  - name: node_resources
+    interval: 30s
+    rules:
+
+      - record: job:node_cpu_usage_percent:rate1m
+        expr: |
+          100 - (
+            avg by (instance) (
+              rate(node_cpu_seconds_total{mode="idle"}[1m])
+            ) * 100
+          )
+
+      - record: job:node_memory_usage_percent:current
+        expr: |
+          100 * (
+            1 - (
+              node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes
+            )
+          )
+
+      - record: job:node_disk_usage_percent:current
+        expr: |
+          100 * (
+            1 - (
+              node_filesystem_avail_bytes{mountpoint="/"}
+              /
+              node_filesystem_size_bytes{mountpoint="/"}
+            )
+          )

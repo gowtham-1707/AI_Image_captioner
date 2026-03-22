@@ -1,0 +1,68 @@
+global:
+  smtp_smarthost:     "sandbox.smtp.mailtrap.io:2525"
+  smtp_from:          "alerts@imagecaptioner.local"
+  smtp_auth_username: "7c7ca0a6d4b145"   
+  smtp_auth_password: "3b5da11b58d046"   
+  smtp_require_tls:   true
+  resolve_timeout: 5m
+
+templates:
+  - "/etc/alertmanager/templates/*.tmpl"
+
+route:
+  group_by:        ["alertname", "severity"]
+  group_wait:      30s    
+  group_interval:  5m     
+  repeat_interval: 1h     
+  receiver: "default-email"
+
+  routes:
+    - match:
+        severity: critical
+      receiver: "critical-email"
+      group_wait:      10s
+      repeat_interval: 15m
+    - match:
+        severity: warning
+      receiver: "default-email"
+      repeat_interval: 30m
+
+    - match:
+        severity: info
+      receiver: "default-email"
+      repeat_interval: 6h
+
+receivers:
+
+  - name: "default-email"
+    email_configs:
+      - to:            "kumarrajagowtham@gmail.com"   
+        send_resolved: true                        
+        headers:
+          Subject: "[Captioner AI] {{ .GroupLabels.alertname }} — {{ .Status | toUpper }}"
+
+  - name: "critical-email"
+    email_configs:
+      - to:            "kumarrajagowtham@gmail.com"  
+        send_resolved: true
+        headers:
+          Subject: " [CRITICAL] {{ .GroupLabels.alertname }} — {{ .Status | toUpper }}"
+
+inhibit_rules:
+
+  - source_match:
+      alertname: CriticalCPUUsage
+    target_match:
+      alertname: HighCPUUsage
+    equal: ["instance"]
+
+  - source_match:
+      alertname: CriticalMemoryUsage
+    target_match:
+      alertname: HighMemoryUsage
+    equal: ["instance"]
+
+  - source_match:
+      alertname: CaptionerAppDown
+    target_match_re:
+      alertname: "Captioner.*|Inference.*|BulkMode.*"

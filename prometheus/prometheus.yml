@@ -1,0 +1,33 @@
+global:
+  scrape_interval:     15s   
+  evaluation_interval: 15s   
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+rule_files:
+  - "/etc/prometheus/rules/recording_rules.yml"
+  - "/etc/prometheus/rules/alerting_rules.yml"
+
+scrape_configs:
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: "ai_captioner"
+    static_configs:
+      - targets: ["captioner-app:8001"]   
+        labels:
+          app: "blip-captioner"           
+    scrape_interval: 10s                  
+
+  - job_name: "node_exporter"
+    static_configs:
+      - targets: ["node-exporter:9100"]   
+        labels:
+          tier: "infrastructure"
+
+  - job_name: "alertmanager"
+    static_configs:
+      - targets: ["alertmanager:9093"]

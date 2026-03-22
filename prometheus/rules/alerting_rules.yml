@@ -1,0 +1,129 @@
+groups:
+  - name: app_health
+    rules:
+      - alert: CaptionerAppDown
+        expr: up{job="ai_captioner"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Captioner app is DOWN"
+          description: "The AI captioner has been unreachable for 30s. Restart the container."
+      - alert: NodeExporterDown
+        expr: up{job="node_exporter"} == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "node_exporter is unreachable"
+          description: "System metrics (CPU/RAM/Disk) are unavailable."
+  - name: app_errors
+    rules:
+      - alert: CaptionerHighErrorRate
+        expr: sum(rate(captioner_errors_total[2m])) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High error rate in captioner"
+          description: "Error rate is {{ $value | humanize }}/s over last 2 min."
+      - alert: CaptionerElevatedErrorRatio
+        expr: job:captioner_error_ratio:rate1m > 0.10
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "More than 10% of images are failing"
+          description: "Error ratio = {{ $value | humanizePercentage }}. Check uploaded files."
+      - alert: BulkModeError
+        expr: increase(captioner_errors_total{mode="bulk"}[5m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Error during bulk ZIP processing"
+          description: "{{ $value }} error(s) detected in bulk mode."
+  - name: resource_overuse
+    rules:
+      - alert: HighCPUUsage
+        expr: job:node_cpu_usage_percent:rate1m > 80
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CPU usage over 80% on {{ $labels.instance }}"
+          description: "CPU = {{ $value | humanize }}% for 2+ min. Likely a bulk batch is running."
+      - alert: CriticalCPUUsage
+        expr: job:node_cpu_usage_percent:rate1m > 95
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "CPU critically high on {{ $labels.instance }}"
+          description: "CPU = {{ $value | humanize }}%. System may become unresponsive."
+      - alert: HighMemoryUsage
+        expr: job:node_memory_usage_percent:current > 85
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Memory usage over 85% on {{ $labels.instance }}"
+          description: "RAM = {{ $value | humanize }}%. Model + batch may exhaust memory."
+      - alert: CriticalMemoryUsage
+        expr: job:node_memory_usage_percent:current > 95
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Near out-of-memory on {{ $labels.instance }}"
+          description: "RAM = {{ $value | humanize }}%. OOM kill imminent — restart app now."
+
+      - alert: DiskSpaceLow
+        expr: job:node_disk_usage_percent:current > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disk space low on {{ $labels.instance }}"
+          description: "Disk = {{ $value | humanize }}%. Clear model cache or old uploads."
+
+  - name: latency_anomalies
+    rules:
+      - alert: InferenceLatencyHigh
+        expr: job:captioner_inference_latency_p95:5m > 10
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "P95 inference latency over 10s ({{ $labels.mode }} mode)"
+          description: "P95 = {{ $value | humanizeDuration }}. Normal baseline is ~2-3s."
+      - alert: InferenceLatencyCritical
+        expr: job:captioner_inference_latency_p99:5m > 30
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "P99 latency critically high ({{ $labels.mode }} mode)"
+          description: "P99 = {{ $value | humanizeDuration }}. Users experiencing extreme delays."
+
+      - alert: InferenceLatencyAnomaly
+        expr: |
+          job:captioner_inference_latency_avg:5m
+          >
+          (job:captioner_inference_latency_p50:1h * 3)
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Latency anomaly — current avg is 3x above normal ({{ $labels.mode }})"
+          description: "Sudden regression detected, not just a gradual increase."
+      - alert: CaptionerIdle
+        expr: |
+          sum(increase(captioner_images_processed_total[10m])) == 0
+          and hour() >= 9 and hour() <= 21
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "No images processed in the last 10 minutes"
+          description: "App may be silently broken during business hours."

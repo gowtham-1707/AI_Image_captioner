@@ -1,0 +1,63 @@
+{{ define "email.da5402.html" }}
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body { font-family: Arial, sans-serif; background: #f4f4f4; padding: 20px; }
+    .container { background: white; border-radius: 8px; padding: 24px; max-width: 640px; margin: auto; }
+    .header { border-bottom: 3px solid {{ if eq .Status "firing" }}#e53e3e{{ else }}#38a169{{ end }}; padding-bottom: 12px; margin-bottom: 20px; }
+    .header h1 { margin: 0; color: {{ if eq .Status "firing" }}#c53030{{ else }}#276749{{ end }}; font-size: 22px; }
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; }
+    .critical { background: #fed7d7; color: #c53030; }
+    .warning  { background: #fefcbf; color: #975a16; }
+    .info     { background: #bee3f8; color: #2b6cb0; }
+    .resolved { background: #c6f6d5; color: #276749; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    td { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+    td:first-child { font-weight: bold; color: #4a5568; width: 35%; }
+    .footer { margin-top: 20px; font-size: 12px; color: #718096; border-top: 1px solid #e2e8f0; padding-top: 12px; }
+    a { color: #3182ce; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>
+        {{ if eq .Status "firing" }}{{ else }}{{ end }}
+        DA5402 Alert — {{ .Status | toUpper }}
+      </h1>
+      <span class="badge {{ if eq .Status "resolved" }}resolved{{ else }}{{ (index .Alerts 0).Labels.severity }}{{ end }}">
+        {{ if eq .Status "resolved" }}RESOLVED{{ else }}{{ (index .Alerts 0).Labels.severity | toUpper }}{{ end }}
+      </span>
+    </div>
+
+    {{ range .Alerts }}
+    <h3>{{ .Annotations.summary }}</h3>
+    <table>
+      <tr><td>Alert Name</td><td>{{ .Labels.alertname }}</td></tr>
+      <tr><td>Severity</td><td>{{ .Labels.severity }}</td></tr>
+      <tr><td>Description</td><td>{{ .Annotations.description }}</td></tr>
+      {{ if .Annotations.runbook }}<tr><td>Runbook</td><td>{{ .Annotations.runbook }}</td></tr>{{ end }}
+      <tr><td>Started At</td><td>{{ .StartsAt.Format "2006-01-02 15:04:05 UTC" }}</td></tr>
+      {{ if .EndsAt }}<tr><td>Resolved At</td><td>{{ .EndsAt.Format "2006-01-02 15:04:05 UTC" }}</td></tr>{{ end }}
+      {{ range .Labels.SortedPairs }}
+        {{ if and (ne .Name "alertname") (ne .Name "severity") (ne .Name "alertstate") }}
+        <tr><td>{{ .Name }}</td><td><code>{{ .Value }}</code></td></tr>
+        {{ end }}
+      {{ end }}
+    </table>
+    {{ end }}
+
+    <div class="footer">
+      <p>
+        🔗 <a href="http://localhost:9090">Prometheus</a> ·
+        <a href="http://localhost:9093">AlertManager</a> ·
+        <a href="http://localhost:3000">Grafana</a>
+      </p>
+      <p>DA5402 A5 Monitoring Stack · Auto-generated alert</p>
+    </div>
+  </div>
+</body>
+</html>
+{{ end }}
