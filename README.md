@@ -1,4 +1,4 @@
-# DA5402 A5 — Application Monitoring: Observability with Prometheus & Grafana
+# AI Image Captioner
 
 ## Overview
 A production-grade monitoring stack for a **CPU-only BLIP Image Captioning** Streamlit app.
